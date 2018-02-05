@@ -1,0 +1,17 @@
+{
+  "name": "fs-service",
+  "version": "0.0.1",
+  "description": "Simple File Storage Service",
+  "author": "Kirill Kuznetsov",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.18.2",
+    "express": "^4.16.2",
+    "method-override": "^2.3.10",
+    "morgan": "^1.9.0",
+    "multer": "^1.3.0",
+    "path": "^0.12.7",
+    "uuid": "^3.2.1",
+    "winston": "^2.4.0"
+  }
+}
