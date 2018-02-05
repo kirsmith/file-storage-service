@@ -68,13 +68,12 @@ app.post('/', upl.any(), function (req, res) {
     let report = [];
 
     for (i = 0; i < req.files.length; i++) {
-        let f = {};
-        f.originalName = req.files[i].originalname;
-        f.storedName = req.files[i].filename;
-        f.size = req.files[i].size;
-        f.type = req.files[i].mimetype;
-
-        report.push(f);
+        report.push({
+            originalName: req.files[i].originalname,
+            storedName: req.files[i].filename,
+            size: req.files[i].size,
+            type: req.files[i].mimetype
+        });
     }
 
     res.json(report);
@@ -110,7 +109,6 @@ app.post('/:fid([0-9a-f]{32})/copy', function (req, res) {
             storedName: newname
         });
     });
-    //res.send('You are attempt to make a copy of file ' + req.params.fid + ' to new file ' + newname);
 });
 
 app.delete('/:fid([0-9a-f]{32})', function (req, res) {
