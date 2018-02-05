@@ -81,44 +81,38 @@ app.post('/', upl.any(), function (req, res) {
 
 app.get('/:fid([0-9a-f]{32})', function (req, res) {
     fs.readFile('./uploads/' + req.params.fid, function (err, data) {
-        if (err) res.redirect('/404');
-        res.end(data);
+        if (err)
+            res.sendStatus(404);
+        else
+            res.end(data);
     });
 });
 
 app.get('/:fid([0-9a-f]{32})/check', function (req, res) {
-    try {
-        fs.accessSync('./uploads/' + req.params.fid, fs.constants.R_OK);
-        res.json({
-            status: 'OK',
-            storedName: req.params.fid
-        });
-    }
-    catch (err) {
-        res.redirect('/404');
-    }
+    fs.access('./uploads/' + req.params.fid, fs.constants.R_OK, function (err) {
+        if (err) res.sendStatus(404);
+        else res.sendStatus(200);
+    });
 });
 
 app.post('/:fid([0-9a-f]{32})/copy', function (req, res) {
     let newname = uuid().toLowerCase().split('-').join('');
     fs.copyFile('./uploads/' + req.params.fid, './uploads/' + newname, fs.constants.COPYFILE_EXCL, function (err) {
-        if (err) res.redirect('/500');
-        res.json({
-            status: 'OK',
-            originalName: req.params.fid,
-            storedName: newname
-        });
+        if (err)
+            res.sendStatus(404);
+        else
+            res.json({
+                status: 'OK',
+                originalName: req.params.fid,
+                storedName: newname
+            });
     });
 });
 
 app.delete('/:fid([0-9a-f]{32})', function (req, res) {
     fs.unlink('./uploads/' + req.params.fid, function (err) {
-        if (err) res.redirect('/404');
-        //res.send('File ' + req.params.fid + ' deleted.');
-        res.json({
-            status: 'OK',
-            originalName: req.params.fid
-        });
+        if (err) res.sendStatus(404);
+        else res.sendStatus(200);
     });
 });
 
