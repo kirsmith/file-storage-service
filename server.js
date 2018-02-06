@@ -10,7 +10,8 @@ let express = require('express'),
     hlp = require('./libs/helper')(module),
     multer = require('multer'),
     fs = require('fs'),
-    uuid = require('uuid/v4');
+    uuid = require('uuid/v4'),
+    jszip = require('jszip');
 
 let upl = multer({ dest : 'uploads/'});
 
@@ -114,6 +115,66 @@ app.delete('/:fid([0-9a-f]{32})', function (req, res) {
         if (err) res.sendStatus(404);
         else res.sendStatus(200);
     });
+});
+
+app.get('/zip', function (req, res) {
+    let zip = new jszip();
+    zip.file("hello.txt", "Hello World\n");
+    zip.folder("nested").file("hello.txt", "Hello World\n");
+    zip.generateAsync({type:"uint8array"})
+        .then(function (content) {
+            let zipname = uuid().toLowerCase().split('-').join('');
+            fs.writeFile('./uploads/' + zipname, content, (err) => {
+                if (err)
+                    res.sendStatus(500);
+                else
+                    res.json({
+                        status: 'OK',
+                        storedName: zipname
+                    });
+            });
+            res.end(content);
+        });
+});
+
+app.post('/makezip', function (req, res) {
+    let struc = req.body;
+    for (let i = 0; i < struc.files.length; i++) {
+        try {
+            fs.accessSync('./uploads/' + struc.files[i].storedName, fs.constants.R_OK);
+        }
+        catch (err) {
+            res.statusCode = 500;
+            res.send('File ' + struc.files[i].storedName + ' not found');
+            return;
+        }
+
+        if ((struc.files[i].fileName || '') === '') {
+            res.statusCode = 500;
+            res.send('Zipped file name not defined');
+            return;
+        }
+    }
+
+    let zip = new jszip();
+    for (let i = 0; i < struc.files.length; i++) {
+        let cont = fs.readFileSync('./uploads/' + struc.files[i].storedName);
+        let fname = (((struc.files[i].folderName || '') !== '') ? struc.files[i].folderName + '/' : '') + struc.files[i].fileName;
+        zip.file(fname, cont, {binary: true});
+    }
+    zip.generateAsync({type:"uint8array"})
+        .then(function (content) {
+            let zipname = uuid().toLowerCase().split('-').join('');
+            fs.writeFile('./uploads/' + zipname, content, (err) => {
+                if (err)
+                    res.sendStatus(500);
+                else
+                    res.json({
+                        status: 'OK',
+                        storedName: zipname
+                    });
+            });
+        });
 });
 
 app.use(function(req, res){

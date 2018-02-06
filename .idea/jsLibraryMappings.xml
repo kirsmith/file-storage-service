@@ -3,6 +3,6 @@
   <component name="JavaScriptLibraryMappings">
     <includedPredefinedLibrary name="Node.js Core" />
     <excludedPredefinedLibrary name="HTML" />
-    <excludedPredefinedLibrary name="fs-service/node_modules" />
+    <excludedPredefinedLibrary name="file-storage-service/node_modules" />
   </component>
 </project>
