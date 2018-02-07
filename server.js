@@ -11,16 +11,16 @@ let express = require('express'),
     multer = require('multer'),
     fs = require('fs'),
     uuid = require('uuid/v4'),
-    jszip = require('jszip');
+    JSZip = require('jszip');
 
-let upl = multer({ dest : 'uploads/'});
+let config = require('./config.json');
+
+let upl = multer({ dest : config.storageDir});
 
 let app = express();
 
-let conf_data = require('./config.json');
 
-
-logger.token('size', function(req, res) {
+logger.token('size', (req, res) => {
     let l = res._contentLength,
         ls = '';
     if (l < 1024) ls = l + ' B';
@@ -28,7 +28,7 @@ logger.token('size', function(req, res) {
     else ls = Math.ceil(l / 1048576) + ' MB';
     return ls;
 });
-logger.token('remote-ip', function (req) {
+logger.token('remote-ip', (req) => {
     return (req.headers['x-forwarded-for'] ||
         req.connection.remoteAddress ||
         req.socket.remoteAddress ||
@@ -43,29 +43,34 @@ app.use(bodyParser.raw({ type: 'application/octet-stream', limit: '50mb' })); //
 app.use(methodOverride()); // поддержка put и delete
 
 
-
-app.get('/favicon.ico', function(req, res) {
+// подавление запроса иконки
+app.get('/favicon.ico', (req, res) => {
     res.status(204);
 });
 
 // удаление тега X-Powered-By из заголовка ответа
-app.use(function (req, res, next) {
+app.use((req, res, next) => {
     res.removeHeader("X-Powered-By");
     next();
 });
 
-app.get('/test', function (req, res) {
+// тестовый запрос проверки работы сервиса
+app.get('/test', (req, res) => {
     res.send('API is running...');
 });
 
-app.get('/', function (req, res) {
-    fs.readFile('./public/upload.html', function (err, data) {
-        res.contentType('text/html');
-        res.end(data);
+// запрос формы передачи файлов
+app.get('/', (req, res) => {
+    fs.readFile('./public/upload.html', (err, data) => {
+        res.type('html').end(data);
     });
 });
 
-app.post('/', upl.any(), function (req, res) {
+// сохранение файла(ов) в хранилище
+// сохраняемые файлы отправляются в форме (multipart/form-data) в поле downloaded_file
+// сохранение файлов производится автоматически методом multer.any(), который создает
+// в объекте запроса (req) массив files, содержащий информацию по всем сохраненным файлам
+app.post('/', upl.any(), (req, res) => {
     let report = [];
 
     for (i = 0; i < req.files.length; i++) {
@@ -80,27 +85,30 @@ app.post('/', upl.any(), function (req, res) {
     res.json(report);
 });
 
-app.get('/:fid([0-9a-f]{32})', function (req, res) {
-    fs.readFile('./uploads/' + req.params.fid, function (err, data) {
-        if (err)
-            res.sendStatus(404);
-        else
-            res.end(data);
+// получение указанного файла из хранилища
+app.get('/:fid([0-9a-f]{32})', (req, res) => {
+    fs.readFile(config.storageDir + req.params.fid, (err, data) => {
+        // в случае ошибки возвращается статус 404 (not found)
+        if (err) res.status(404).end();
+        else res.end(data);
     });
 });
 
-app.get('/:fid([0-9a-f]{32})/check', function (req, res) {
-    fs.access('./uploads/' + req.params.fid, fs.constants.R_OK, function (err) {
-        if (err) res.sendStatus(404);
-        else res.sendStatus(200);
+// проверка существования файла в хранилище
+app.get('/:fid([0-9a-f]{32})/check', (req, res) => {
+    fs.access(config.storageDir + req.params.fid, fs.constants.R_OK, (err) => {
+        // в случае ошибки возвращается статус 404 (not found)
+        if (err) res.status(404).end();
+        // если файл существует, возвращается статус 200 (ОК)
+        else res.status(200).end();
     });
 });
 
-app.post('/:fid([0-9a-f]{32})/copy', function (req, res) {
+// создание копии указанного файла
+app.post('/:fid([0-9a-f]{32})/copy', (req, res) => {
     let newname = uuid().toLowerCase().split('-').join('');
-    fs.copyFile('./uploads/' + req.params.fid, './uploads/' + newname, fs.constants.COPYFILE_EXCL, function (err) {
-        if (err)
-            res.sendStatus(404);
+    fs.copyFile(config.storageDir + req.params.fid, config.storageDir + newname, fs.constants.COPYFILE_EXCL, (err) => {
+        if (err) res.status(404).end();
         else
             res.json({
                 status: 'OK',
@@ -110,64 +118,66 @@ app.post('/:fid([0-9a-f]{32})/copy', function (req, res) {
     });
 });
 
-app.delete('/:fid([0-9a-f]{32})', function (req, res) {
-    fs.unlink('./uploads/' + req.params.fid, function (err) {
-        if (err) res.sendStatus(404);
-        else res.sendStatus(200);
+// удаление файла из хранилища
+app.delete('/:fid([0-9a-f]{32})', (req, res) => {
+    fs.unlink(config.storageDir + req.params.fid, (err) => {
+        if (err) res.status(404).end();
+        else res.status(200).end();
     });
 });
 
-app.get('/zip', function (req, res) {
-    let zip = new jszip();
-    zip.file("hello.txt", "Hello World\n");
-    zip.folder("nested").file("hello.txt", "Hello World\n");
-    zip.generateAsync({type:"uint8array"})
-        .then(function (content) {
-            let zipname = uuid().toLowerCase().split('-').join('');
-            fs.writeFile('./uploads/' + zipname, content, (err) => {
-                if (err)
-                    res.sendStatus(500);
-                else
-                    res.json({
-                        status: 'OK',
-                        storedName: zipname
-                    });
-            });
-            res.end(content);
-        });
-});
-
-app.post('/makezip', function (req, res) {
+// формирование zip-архива на основании переданной структуры
+// в теле запроса передается json-объект вида:
+// {
+//     "files": [
+//         {
+//             "storedName": <уникальное имя файла в хранилище>,
+//             "fileName": <имя файла в архиве с учетом структуры каталогов>
+//         }
+//     ]
+// }
+app.post('/makezip', (req, res) => {
     let struc = req.body;
+    /* проверка переданной структуры */
     for (let i = 0; i < struc.files.length; i++) {
+        // проверка существования сохраненного файла
         try {
-            fs.accessSync('./uploads/' + struc.files[i].storedName, fs.constants.R_OK);
+            fs.accessSync(config.storageDir + struc.files[i].storedName, fs.constants.R_OK);
         }
         catch (err) {
-            res.statusCode = 500;
-            res.send('File ' + struc.files[i].storedName + ' not found');
+            // в случае ошибки вернуть код 404 и имя файла
+            res.status(404).send('File ' + struc.files[i].storedName + ' not found');
             return;
         }
 
+        // имя файла, помещаемого в архив, должно быть определено
         if ((struc.files[i].fileName || '') === '') {
-            res.statusCode = 500;
-            res.send('Zipped file name not defined');
+            res.status(500).send('Zipped file name not defined (for stored file ' + struc.files[i].storedName + ')');
             return;
         }
     }
 
-    let zip = new jszip();
+    /* формирование zip-архива */
+    // создание объект архива
+    let zip = new JSZip();
+    // для каждого файла, описанного во входной структуре...
     for (let i = 0; i < struc.files.length; i++) {
-        let cont = fs.readFileSync('./uploads/' + struc.files[i].storedName);
+        // прочитать содержимое сохраненного файла
+        let cont = fs.readFileSync(config.storageDir + struc.files[i].storedName);
+        // записать файл в архив с указанным именем
         zip.file(struc.files[i].fileName, cont, {binary: true});
     }
+    // формирование файла архива
     zip.generateAsync({type:"uint8array"})
-        .then(function (content) {
+        .then((content) => {
+            // генерация уникального имени для созданного архива
             let zipname = uuid().toLowerCase().split('-').join('');
-            fs.writeFile('./uploads/' + zipname, content, (err) => {
-                if (err)
-                    res.sendStatus(500);
+            // запись файла в хранилище
+            fs.writeFile(config.storageDir + zipname, content, (err) => {
+                // в случае ошибки в процессе записи файла вернуть код 500 и содержимое ошибки
+                if (err) res.status(500).end(err);
                 else
+                    // в случае успеха вернуть имя сохраненного файла
                     res.json({
                         status: 'OK',
                         storedName: zipname
@@ -176,7 +186,8 @@ app.post('/makezip', function (req, res) {
         });
 });
 
-app.use(function(req, res){
+// обработка ошибочных запросов
+app.use((req, res) => {
     hlp.error(res, {
         code: 404,
         title: 'Not found URL',
@@ -184,7 +195,8 @@ app.use(function(req, res){
     });
 });
 
-app.use(function(req, res, next, err){
+// обработка общих ошибок сервиса
+app.use((req, res, next, err) => {
     hlp.error(res, {
         code: err.status || 500,
         title: 'Internal error',
@@ -194,10 +206,10 @@ app.use(function(req, res, next, err){
 
 
 
-app.listen(conf_data.http.port, function() {
+app.listen(config.port, function() {
     hlp.info({
         title: 'Сервер запущен',
-        message : 'Сервер начал работу на порту ' + conf_data.http.port
+        message : 'Сервер начал работу на порту ' + config.port
     });
 });
 

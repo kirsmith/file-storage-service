@@ -1,5 +1,4 @@
 {
-  "http": {
-    "port": 9876
-  }
+  "port": 9876,
+  "storageDir": "uploads/"
 }
