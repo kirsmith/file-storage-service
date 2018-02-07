@@ -159,8 +159,7 @@ app.post('/makezip', function (req, res) {
     let zip = new jszip();
     for (let i = 0; i < struc.files.length; i++) {
         let cont = fs.readFileSync('./uploads/' + struc.files[i].storedName);
-        let fname = (((struc.files[i].folderName || '') !== '') ? struc.files[i].folderName + '/' : '') + struc.files[i].fileName;
-        zip.file(fname, cont, {binary: true});
+        zip.file(struc.files[i].fileName, cont, {binary: true});
     }
     zip.generateAsync({type:"uint8array"})
         .then(function (content) {
