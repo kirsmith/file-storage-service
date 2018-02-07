@@ -11,7 +11,8 @@ let express = require('express'),
     multer = require('multer'),
     fs = require('fs'),
     uuid = require('uuid/v4'),
-    JSZip = require('jszip');
+    JSZip = require('jszip'),
+    _ = require('underscore');
 
 let config = require('./config.json');
 
@@ -184,6 +185,87 @@ app.post('/makezip', (req, res) => {
                     });
             });
         });
+});
+
+// очистка хранилища
+// для работы метода на вход необходимо передать массив имен используемых файлов
+//
+// по умолчанию, метод выполняет диагностику хранилища и возвращает json-объект, содержащий два массива:
+//   toclear - имена файлов подлежащих удалению
+//   notfound - имена файлов из входного массива, которые не были найдены в хранилище
+//
+// если при вызове метода в запросе указать параметр "deleteunusedfiles", метод выполнит удаление неиспользуемых файлов
+// в результате этой операции неиспользуемые файлы будут физически удалены и метод вернет json-объект, содержащий два
+// поля:
+//   deleted - количество удаленных файлов
+//   notfound - массив имен файлов из входного массива, которые не были найдены в хранилище
+app.post('/clean', (req, res) => {
+    let data = req.body;
+
+    // проверка входных данных
+    if (!Array.isArray(data)) {
+        res.status(500).send("Array of string required");
+        return;
+    }
+
+    // если на входной массив пустой
+    if (data.length === 0) {
+        // завершить работу
+        res.status(200).end();
+        return;
+    }
+
+    // служебные объекты для работы с именами файлов
+    let toclear = {}, master = {};
+
+    //
+    for (let i = 0; i < data.length; i++)
+        master[data[i]] = true;
+
+    // чтение содержимого каталога файлового хранилища
+    fs.readdir(config.storageDir, (err, files) => {
+        // для каждого файла из хранилища...
+        for (let i = 0; i < files.length; i++) {
+            // проверяется нахождение его имени в списке имен используемых файлов
+            if (files[i] in master)
+                // если файл из хранилища найден в списке используемых, никаких операций с ним производить не нужно
+                delete master[files[i]];
+            else
+                // если файл с списке используемых не найден, нужно включить его в список на удаление
+                toclear[files[i]] = true;
+        }
+
+        // если в запросе указан флаг физического удаления неиспользуемых файлов...
+        if ('deleteunusedfiles' in req.query) {
+            // счетчик удаленных файлов
+            let counter = 0;
+            // перебор полей объекта
+            for (fn in toclear) {
+                try {
+                    // синхронное удаление файла
+                    fs.unlinkSync(config.storageDir + fn);
+                    counter++;
+                }
+                catch (err) {
+                    // в случае ошибки вернуть код 500 и имя файла
+                    res.status(500).end('Can not delete file ' + fn);
+                    break;
+                }
+            }
+
+            // подготовка и отправка результов работы
+            res.json({
+                deleted: counter,
+                notfound: _.keys(master)
+            });
+        }
+        else
+            // подготовка и отправка диагностического отчета
+            res.json({
+                toclear: _.keys(toclear),
+                notfound: _.keys(master)
+            });
+    });
 });
 
 // обработка ошибочных запросов
