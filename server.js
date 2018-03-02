@@ -74,6 +74,11 @@ app.get('/', (req, res) => {
 app.post('/', upl.any(), (req, res) => {
     let report = [];
 
+    if (!('files' in req)) {
+        res.status(500).send('No files for saving in storage');
+        return;
+    }
+
     for (i = 0; i < req.files.length; i++) {
         report.push({
             originalName: req.files[i].originalname,
