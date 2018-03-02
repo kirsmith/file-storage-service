@@ -139,7 +139,14 @@ app.delete('/:fid([0-9a-f]{32})', (req, res) => {
 // }
 app.post('/makezip', (req, res) => {
     let struc = req.body;
+
     /* проверка переданной структуры */
+
+    if (!('files' in struc) || (struc.files.length === 0)) {
+        res.status(500).send('No files for packing');
+        return;
+    }
+
     for (let i = 0; i < struc.files.length; i++) {
         // проверка существования сохраненного файла
         try {
